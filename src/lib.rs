@@ -66,9 +66,30 @@ impl WmiClient {
         })
     }
 
-    /// 执行WQL查询，返回JSON字符串
+    /// 执行WQL查询，直接返回JavaScript对象
     #[napi]
-    pub fn query(&self, wql: String) -> Result<String> {
+    pub fn query(&self, wql: String) -> Result<Value> {
+        let results: Vec<HashMap<String, Variant>> = self.inner
+            .raw_query(&wql)
+            .map_err(|e| Error::new(Status::GenericFailure, format!("查询失败: {}", e)))?;
+
+        let json_results: Vec<Value> = results
+            .into_iter()
+            .map(|row| {
+                let json_row: HashMap<String, Value> = row
+                    .into_iter()
+                    .map(|(k, v)| (k, variant_to_json(&v)))
+                    .collect();
+                Value::Object(json_row.into_iter().collect())
+            })
+            .collect();
+
+        Ok(Value::Array(json_results))
+    }
+
+    /// 执行WQL查询，返回JSON字符串（兼容旧版本）
+    #[napi]
+    pub fn query_string(&self, wql: String) -> Result<String> {
         let results: Vec<HashMap<String, Variant>> = self.inner
             .raw_query(&wql)
             .map_err(|e| Error::new(Status::GenericFailure, format!("查询失败: {}", e)))?;
@@ -104,9 +125,9 @@ impl WmiClient {
     }
 }
 
-/// 快速查询函数，使用默认命名空间
+/// 快速查询函数，直接返回JavaScript对象
 #[napi]
-pub fn quick_query(wql: String, namespace: Option<String>) -> Result<String> {
+pub fn quick_query(wql: String, namespace: Option<String>) -> Result<Value> {
     let config = WmiClientConfig {
         namespace,
         timeout: None,
@@ -114,6 +135,18 @@ pub fn quick_query(wql: String, namespace: Option<String>) -> Result<String> {
     
     let client = WmiClient::new(Some(config))?;
     client.query(wql)
+}
+
+/// 快速查询函数，返回JSON字符串（兼容旧版本）
+#[napi]
+pub fn quick_query_string(wql: String, namespace: Option<String>) -> Result<String> {
+    let config = WmiClientConfig {
+        namespace,
+        timeout: None,
+    };
+    
+    let client = WmiClient::new(Some(config))?;
+    client.query_string(wql)
 }
 
 /// 获取当前系统的基本信息

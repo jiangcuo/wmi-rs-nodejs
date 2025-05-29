@@ -9,10 +9,11 @@ A lightweight Node.js binding for Windows Management Instrumentation (WMI) built
 
 - 🚀 **High Performance**: Built with Rust for optimal performance
 - 🔧 **Simple API**: Clean and intuitive interface for WMI queries
-- 📊 **JSON Output**: Direct JSON format results, no parsing required
+- 📊 **Direct Object Return**: Returns JavaScript objects directly, no JSON parsing needed
 - 🎯 **Namespace Support**: Connect to any WMI namespace
 - 🛡️ **No External Dependencies**: No reliance on system wmic tool
 - 💻 **Windows Native**: Leverages native Windows WMI capabilities
+- 🔄 **Backward Compatible**: String API still available for existing code
 
 ## Installation
 
@@ -32,13 +33,16 @@ const { WmiClient, quickQuery } = require('wmi-nodejs');
 // Create a WMI client with default namespace
 const client = new WmiClient();
 
-// Query operating system information
+// NEW: Query returns JavaScript objects directly (no JSON.parse needed!)
 const osInfo = client.query('SELECT Caption, Version FROM Win32_OperatingSystem');
-console.log(JSON.parse(osInfo));
+console.log(osInfo[0].Caption); // Direct property access
+console.log(osInfo[0].Version);
 
-// Quick query without creating a client instance
+// NEW: Quick query also returns objects directly
 const processes = quickQuery('SELECT ProcessId, Name FROM Win32_Process WHERE Name = "explorer.exe"');
-console.log(JSON.parse(processes));
+processes.forEach(proc => {
+    console.log(`PID: ${proc.ProcessId}, Name: ${proc.Name}`);
+});
 ```
 
 ## API Reference
@@ -71,9 +75,27 @@ const hypervClient = new WmiClient({
 
 #### Methods
 
-##### client.query(wql)
+##### client.query(wql) ⭐ NEW
 
-Executes a WQL (WMI Query Language) query and returns results as JSON.
+Executes a WQL (WMI Query Language) query and returns JavaScript objects directly.
+
+**Parameters:**
+- `wql` (string): WQL query string
+
+**Returns:**
+- `Array<Object>`: Array of JavaScript objects containing query results
+
+**Example:**
+```javascript
+const result = client.query('SELECT * FROM Win32_ComputerSystem');
+// No JSON.parse() needed!
+console.log(result[0].Name);
+console.log(result[0].TotalPhysicalMemory);
+```
+
+##### client.queryString(wql)
+
+Executes a WQL query and returns results as JSON string (backward compatibility).
 
 **Parameters:**
 - `wql` (string): WQL query string
@@ -83,8 +105,8 @@ Executes a WQL (WMI Query Language) query and returns results as JSON.
 
 **Example:**
 ```javascript
-const result = client.query('SELECT * FROM Win32_ComputerSystem');
-const data = JSON.parse(result);
+const result = client.queryString('SELECT * FROM Win32_ComputerSystem');
+const data = JSON.parse(result); // Manual parsing required
 console.log(data);
 ```
 
@@ -114,13 +136,32 @@ if (client.testConnection()) {
 }
 ```
 
-### quickQuery Function
+### Quick Query Functions
 
+#### quickQuery(wql, namespace?) ⭐ NEW
+
+Executes a quick WMI query without creating a client instance. Returns JavaScript objects directly.
+
+**Parameters:**
+- `wql` (string): WQL query string
+- `namespace` (string, optional): WMI namespace path
+
+**Returns:**
+- `Array<Object>`: Array of JavaScript objects
+
+**Example:**
 ```javascript
-quickQuery(wql, namespace?)
+// Returns objects directly
+const result = quickQuery('SELECT * FROM Win32_Process');
+result.forEach(proc => console.log(proc.Name));
+
+// Custom namespace  
+const vms = quickQuery('SELECT * FROM Msvm_ComputerSystem', 'root/virtualization/v2');
 ```
 
-Executes a quick WMI query without creating a client instance.
+#### quickQueryString(wql, namespace?)
+
+Executes a quick WMI query and returns JSON string (backward compatibility).
 
 **Parameters:**
 - `wql` (string): WQL query string
@@ -131,12 +172,140 @@ Executes a quick WMI query without creating a client instance.
 
 **Example:**
 ```javascript
-// Default namespace
-const result1 = quickQuery('SELECT * FROM Win32_Process');
-
-// Custom namespace  
-const result2 = quickQuery('SELECT * FROM Msvm_ComputerSystem', 'root/virtualization/v2');
+const result = quickQueryString('SELECT * FROM Win32_Process');
+const data = JSON.parse(result);
 ```
+
+## Usage Examples
+
+### System Information (New Object API)
+
+```javascript
+const { WmiClient } = require('wmi-nodejs');
+const client = new WmiClient();
+
+// Operating System - Direct object access!
+const os = client.query('SELECT Caption, Version, BuildNumber FROM Win32_OperatingSystem');
+console.log(`OS: ${os[0].Caption}`);
+console.log(`Version: ${os[0].Version}`);
+console.log(`Build: ${os[0].BuildNumber}`);
+
+// Processor Information
+const cpu = client.query('SELECT Name, NumberOfCores, MaxClockSpeed FROM Win32_Processor');
+cpu.forEach(processor => {
+    console.log(`CPU: ${processor.Name}`);
+    console.log(`Cores: ${processor.NumberOfCores}`);
+    console.log(`Speed: ${processor.MaxClockSpeed} MHz`);
+});
+
+// Memory Information
+const memory = client.query('SELECT Capacity, Speed FROM Win32_PhysicalMemory');
+memory.forEach(stick => {
+    console.log(`Memory: ${Math.round(stick.Capacity / 1024 / 1024 / 1024)} GB`);
+    console.log(`Speed: ${stick.Speed} MHz`);
+});
+
+// Disk Drives
+const disks = client.query('SELECT DeviceID, Size, FreeSpace FROM Win32_LogicalDisk WHERE DriveType = 3');
+disks.forEach(disk => {
+    const totalGB = Math.round(disk.Size / 1024 / 1024 / 1024);
+    const freeGB = Math.round(disk.FreeSpace / 1024 / 1024 / 1024);
+    console.log(`Drive ${disk.DeviceID} ${totalGB}GB total, ${freeGB}GB free`);
+});
+```
+
+### Process and Service Management
+
+```javascript
+// Running Processes
+const processes = client.query('SELECT ProcessId, Name, WorkingSetSize FROM Win32_Process');
+processes.forEach(proc => {
+    if (proc.WorkingSetSize > 100000000) { // > 100MB
+        console.log(`${proc.Name} (PID: ${proc.ProcessId}) - ${Math.round(proc.WorkingSetSize/1024/1024)}MB`);
+    }
+});
+
+// Windows Services
+const services = client.query('SELECT Name, State, StartMode FROM Win32_Service WHERE State = "Running"');
+console.log(`Running services: ${services.length}`);
+services.slice(0, 5).forEach(service => {
+    console.log(`${service.Name}: ${service.State} (${service.StartMode})`);
+});
+
+// Network Adapters
+const adapters = client.query('SELECT Name, NetConnectionStatus FROM Win32_NetworkAdapter WHERE NetConnectionStatus = 2');
+adapters.forEach(adapter => {
+    console.log(`Active adapter: ${adapter.Name}`);
+});
+```
+
+### Hyper-V Virtual Machines
+
+```javascript
+const hypervClient = new WmiClient({ namespace: 'root/virtualization/v2' });
+
+// Virtual Machines
+const vms = hypervClient.query('SELECT ElementName, EnabledState FROM Msvm_ComputerSystem WHERE Caption = "Virtual Machine"');
+vms.forEach(vm => {
+    const state = vm.EnabledState === 2 ? 'Running' : vm.EnabledState === 3 ? 'Off' : 'Other';
+    console.log(`VM: ${vm.ElementName} - ${state}`);
+});
+
+// Virtual Machine Settings
+const vmSettings = hypervClient.query('SELECT ElementName, ConfigurationDataRoot FROM Msvm_VirtualSystemSettingData');
+vmSettings.forEach(setting => {
+    console.log(`VM Config: ${setting.ElementName}`);
+});
+```
+
+### Working with Complex Data Types
+
+```javascript
+// Network configuration with arrays
+const configs = client.query(`
+    SELECT Description, IPAddress, SubnetMask, DefaultIPGateway 
+    FROM Win32_NetworkAdapterConfiguration 
+    WHERE IPEnabled = TRUE
+`);
+
+configs.forEach(config => {
+    console.log(`Adapter: ${config.Description}`);
+    
+    // Handle array properties directly
+    if (config.IPAddress && Array.isArray(config.IPAddress)) {
+        config.IPAddress.forEach(ip => console.log(`  IP: ${ip}`));
+    }
+    
+    if (config.DefaultIPGateway && Array.isArray(config.DefaultIPGateway)) {
+        config.DefaultIPGateway.forEach(gw => console.log(`  Gateway: ${gw}`));
+    }
+});
+```
+
+## Migration Guide
+
+### Upgrading from String API to Object API
+
+**Old way (still works):**
+```javascript
+const result = client.queryString('SELECT * FROM Win32_Process');
+const data = JSON.parse(result);
+data.forEach(proc => console.log(proc.Name));
+```
+
+**New way (recommended):**
+```javascript
+const result = client.query('SELECT * FROM Win32_Process');
+result.forEach(proc => console.log(proc.Name));
+```
+
+### Benefits of Object API
+
+- ✅ **No manual parsing**: Direct JavaScript object access
+- ✅ **Better performance**: No JSON string parsing overhead
+- ✅ **Type safety**: Better TypeScript support
+- ✅ **Cleaner code**: Less boilerplate
+- ✅ **Error reduction**: No JSON.parse() errors
 
 ## Common WMI Namespaces
 
@@ -147,75 +316,6 @@ const result2 = quickQuery('SELECT * FROM Msvm_ComputerSystem', 'root/virtualiza
 | `root/wmi` | Windows management instrumentation |
 | `root/directory/ldap` | Active Directory information |
 | `root/microsoft/windows/storage` | Storage management |
-
-## Usage Examples
-
-### System Information
-
-```javascript
-const { WmiClient } = require('wmi-nodejs');
-const client = new WmiClient();
-
-// Operating System
-const os = client.query('SELECT Caption, Version, BuildNumber FROM Win32_OperatingSystem');
-console.log('OS Info:', JSON.parse(os));
-
-// Processor
-const cpu = client.query('SELECT Name, NumberOfCores, MaxClockSpeed FROM Win32_Processor');
-console.log('CPU Info:', JSON.parse(cpu));
-
-// Memory
-const memory = client.query('SELECT Capacity, Speed FROM Win32_PhysicalMemory');
-console.log('Memory Info:', JSON.parse(memory));
-
-// Disk Drives
-const disks = client.query('SELECT DeviceID, Size, FreeSpace FROM Win32_LogicalDisk WHERE DriveType = 3');
-console.log('Disk Info:', JSON.parse(disks));
-```
-
-### Process and Service Management
-
-```javascript
-// Running Processes
-const processes = client.query('SELECT ProcessId, Name, WorkingSetSize FROM Win32_Process');
-console.log('Processes:', JSON.parse(processes));
-
-// Windows Services
-const services = client.query('SELECT Name, State, StartMode FROM Win32_Service WHERE State = "Running"');
-console.log('Services:', JSON.parse(services));
-
-// Network Adapters
-const adapters = client.query('SELECT Name, NetConnectionStatus FROM Win32_NetworkAdapter WHERE NetConnectionStatus = 2');
-console.log('Network Adapters:', JSON.parse(adapters));
-```
-
-### Hyper-V Virtual Machines
-
-```javascript
-const hypervClient = new WmiClient({ namespace: 'root/virtualization/v2' });
-
-// Virtual Machines
-const vms = hypervClient.query('SELECT ElementName, EnabledState FROM Msvm_ComputerSystem WHERE Caption = "Virtual Machine"');
-console.log('Virtual Machines:', JSON.parse(vms));
-
-// Virtual Machine Settings
-const vmSettings = hypervClient.query('SELECT * FROM Msvm_VirtualSystemSettingData');
-console.log('VM Settings:', JSON.parse(vmSettings));
-```
-
-### Error Handling
-
-```javascript
-const { WmiClient } = require('wmi-nodejs');
-
-try {
-    const client = new WmiClient({ namespace: 'root/invalid' });
-    const result = client.query('SELECT * FROM InvalidClass');
-    console.log(JSON.parse(result));
-} catch (error) {
-    console.error('WMI Query failed:', error.message);
-}
-```
 
 ## WQL Query Examples
 
@@ -255,10 +355,11 @@ SELECT * FROM Win32_LogicalDisk WHERE DriveType = 3 AND FreeSpace > 1000000000
 
 ## Performance Tips
 
-1. **Specific Queries**: Select only needed properties instead of using `SELECT *`
-2. **Use Filters**: Apply WHERE clauses to reduce result set size  
-3. **Connection Reuse**: Reuse WmiClient instances for multiple queries
-4. **Namespace Selection**: Use the most specific namespace for your queries
+1. **Use Object API**: New object API is faster than string API
+2. **Specific Queries**: Select only needed properties instead of using `SELECT *`
+3. **Use Filters**: Apply WHERE clauses to reduce result set size  
+4. **Connection Reuse**: Reuse WmiClient instances for multiple queries
+5. **Namespace Selection**: Use the most specific namespace for your queries
 
 ## Troubleshooting
 
@@ -290,7 +391,7 @@ console.log('Namespace:', client.getNamespace());
 
 // Available namespaces
 const namespaces = quickQuery('SELECT Name FROM __Namespace');
-console.log('Available namespaces:', JSON.parse(namespaces));
+console.log('Available namespaces:', namespaces);
 ```
 
 ## Building from Source

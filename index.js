@@ -310,8 +310,9 @@ if (!nativeBinding) {
   throw new Error(`Failed to load native binding`)
 }
 
-const { WmiClient, quickQuery, getSystemInfo } = nativeBinding
+const { WmiClient, quickQuery, quickQueryString, getSystemInfo } = nativeBinding
 
 module.exports.WmiClient = WmiClient
 module.exports.quickQuery = quickQuery
+module.exports.quickQueryString = quickQueryString
 module.exports.getSystemInfo = getSystemInfo
