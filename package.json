@@ -1,0 +1,86 @@
+{
+  "name": "wmi-nodejs",
+  "version": "0.1.0",
+  "description": "A lightweight Node.js binding for Windows Management Instrumentation (WMI) built with Rust. Provides direct WMI access without depending on external system tools.",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "scripts": {
+    "build": "napi build --platform --release",
+    "build:debug": "napi build --platform",
+    "prepublishOnly": "napi prepublish -t npm",
+    "test": "node test.js",
+    "example": "node example.js",
+    "universal": "napi universal",
+    "version": "napi version"
+  },
+  "napi": {
+    "name": "wmi-nodejs",
+    "triples": {
+      "defaults": true,
+      "additional": [
+        "x86_64-pc-windows-msvc",
+        "i686-pc-windows-msvc"
+      ]
+    }
+  },
+  "license": "MIT OR Apache-2.0",
+  "devDependencies": {
+    "@napi-rs/cli": "^2.17.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jiangc/wmi-rs-nodejs.git"
+  },
+  "homepage": "https://github.com/jiangc/wmi-rs-nodejs#readme",
+  "bugs": {
+    "url": "https://github.com/jiangc/wmi-rs-nodejs/issues"
+  },
+  "keywords": [
+    "wmi",
+    "windows",
+    "management",
+    "instrumentation",
+    "system",
+    "query",
+    "wql",
+    "napi-rs",
+    "rust",
+    "native",
+    "performance",
+    "hyper-v",
+    "virtualization",
+    "monitoring",
+    "system-info"
+  ],
+  "engines": {
+    "node": ">= 12.0.0"
+  },
+  "os": [
+    "win32"
+  ],
+  "cpu": [
+    "x64",
+    "ia32"
+  ],
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/",
+    "access": "public"
+  },
+  "optionalDependencies": {
+    "wmi-nodejs-win32-x64-msvc": "0.1.0",
+    "wmi-nodejs-win32-ia32-msvc": "0.1.0"
+  },
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "README.md",
+    "README-simple.md",
+    "example.js",
+    "*.node"
+  ],
+  "author": {
+    "name": "jiangcuo",
+    "email": "jiangcuo@lierfang.com"
+  },
+  "contributors": []
+} 
